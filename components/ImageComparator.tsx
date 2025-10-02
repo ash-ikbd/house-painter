@@ -14,10 +14,12 @@ const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(
 export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage, newImage }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isSliderDragging = useRef(false);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, viewX: 0, viewY: 0 });
+  const transitionTimeoutRef = useRef<number | null>(null);
 
   const isShareSupported = typeof navigator !== 'undefined' && !!navigator.share;
 
@@ -94,9 +96,26 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
     };
   }, [handleSliderMove, handlePanMove]);
   
+  useEffect(() => {
+    return () => {
+        if (transitionTimeoutRef.current) {
+            clearTimeout(transitionTimeoutRef.current);
+        }
+    }
+  }, []);
+
+  const stopTransition = () => {
+    if (isTransitioning) setIsTransitioning(false);
+    if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+    }
+  };
+
   const onContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (view.scale > 1) {
       e.preventDefault();
+      stopTransition();
       isPanning.current = true;
       panStart.current = { x: e.clientX, y: e.clientY, viewX: view.x, viewY: view.y };
       e.currentTarget.style.cursor = 'grabbing';
@@ -105,6 +124,7 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
 
   const onContainerTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
      if (view.scale > 1 && e.touches.length === 1) {
+        stopTransition();
         isPanning.current = true;
         panStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, viewX: view.x, viewY: view.y };
      }
@@ -119,6 +139,7 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (!containerRef.current) return;
+    stopTransition();
 
     const { deltaY } = e;
     const zoomFactor = 1.1;
@@ -128,11 +149,12 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // The point in the content that was under the mouse, relative to content's center
+    // Calculate the image point under the cursor
+    // The transform-origin is center, so we adjust calculations accordingly
     const pointX = (mouseX - rect.width / 2 - view.x) / view.scale;
     const pointY = (mouseY - rect.height / 2 - view.y) / view.scale;
 
-    // The new translation to keep the point under the mouse
+    // Calculate the new translation to keep the point under the cursor
     const newX = -pointX * newScale + (mouseX - rect.width / 2);
     const newY = -pointY * newScale + (mouseY - rect.height / 2);
 
@@ -141,11 +163,14 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
   
   const applyZoom = (direction: 'in' | 'out') => {
     if (!containerRef.current) return;
+    stopTransition();
+    setIsTransitioning(true);
+
     const { width, height } = containerRef.current.getBoundingClientRect();
     const zoomFactor = 1.5;
     const newScale = direction === 'in' ? view.scale * zoomFactor : view.scale / zoomFactor;
     
-    // Zoom towards the center of the viewport
+    // Zoom towards the center of the view
     const centerX = width / 2;
     const centerY = height / 2;
     
@@ -156,9 +181,16 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
     const newY = -pointY * newScale + (centerY - height / 2);
 
     updateBoundedView({ scale: newScale, x: newX, y: newY });
+    
+    transitionTimeoutRef.current = window.setTimeout(() => setIsTransitioning(false), 200);
   };
   
-  const resetView = () => setView({ scale: 1, x: 0, y: 0 });
+  const resetView = () => {
+    stopTransition();
+    setIsTransitioning(true);
+    setView({ scale: 1, x: 0, y: 0 });
+    transitionTimeoutRef.current = window.setTimeout(() => setIsTransitioning(false), 200);
+  };
 
   const handleDownload = () => {
     const link = document.createElement('a');
@@ -199,7 +231,7 @@ export const ImageComparator: React.FC<ImageComparatorProps> = ({ originalImage,
         onTouchStart={onContainerTouchStart}
       >
         <div
-          className="relative w-full h-full origin-center transition-transform duration-200 ease-out"
+          className={`relative w-full h-full origin-center ${isTransitioning ? 'transition-transform duration-200 ease-out' : ''}`}
           style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
         >
           <img
