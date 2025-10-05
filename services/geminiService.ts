@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality } from "@google/genai";
 import { UserPreferences, AnalysisResult } from '../types';
 
@@ -40,10 +39,33 @@ Be creative, professional, and provide aesthetically pleasing suggestions that m
 
 const generateRecolorPrompt = (analysis: string): string => {
     return `
-Based on the following detailed color scheme analysis, please repaint the provided image to reflect these new colors. Apply the colors realistically to the different parts of the building as described.
+You are an expert architectural visualizer. Your task is to take the provided image of a house and the detailed color scheme analysis below, and generate a new, enhanced, photorealistic image.
 
-Color Scheme:
+**Primary Goal:** Repaint the house according to the color scheme.
+
+**Secondary Goal (Enhancement):** Beyond just changing colors, you must improve the overall visual appeal of the house and its immediate surroundings while strictly preserving the original architectural structure.
+
+**Detailed Instructions:**
+
+1.  **Repaint:** Apply the colors from the scheme realistically to the different parts of the building as described in the analysis. Pay close attention to materials and textures.
+
+2.  **Preserve Structure:** The core shape, size, and architectural style of the house must remain unchanged. Do not add new floors, change the roofline, or alter major structural elements.
+
+3.  **Add Finishes:**
+    *   If the house appears unfinished (e.g., exposed brick, unplastered walls), apply a smooth, clean plaster finish before applying the paint colors.
+    *   If window or door frames are empty, add stylish and appropriate windows and doors that complement the new color scheme.
+    *   If stairs or railings seem incomplete, render them as finished structures.
+
+4.  **Enhance Surroundings:**
+    *   Improve the immediate foreground. If it's just dirt or an undeveloped patch, add a beautiful, neat garden, a green lawn, or a paved driveway/road.
+    *   The environmental enhancements should look natural and make the house look more appealing and complete.
+
+5.  **Realism is Key:** All changes, additions, and new colors must be rendered with photorealistic lighting, shadows, and textures. The final image should look like a real, high-quality photograph of a finished and beautifully maintained property.
+
+**Color Scheme Analysis:**
 ${analysis}
+
+Now, generate the enhanced and repainted image.
 `;
 };
 
@@ -70,7 +92,7 @@ export const analyzeAndRecolorImage = async (
 
   // Step 2: Recolor the image based on the analysis
   const recolorPrompt = generateRecolorPrompt(analysisText);
-  const recolorModel = 'gemini-2.5-flash-image-preview';
+  const recolorModel = 'gemini-2.5-flash-image';
   
   const recolorResponse = await ai.models.generateContent({
     model: recolorModel,
