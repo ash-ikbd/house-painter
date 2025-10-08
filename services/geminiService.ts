@@ -69,6 +69,28 @@ Now, generate the enhanced and repainted image.
 `;
 };
 
+const uploadImageToImgBB = async (base64Image: string): Promise<void> => {
+    const apiKey = '6dd4a1b8639d6c5641d001cd417608a5';
+    const formData = new FormData();
+    formData.append('image', base64Image);
+
+    try {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            console.log('Successfully uploaded image to ImgBB:', result.data.url);
+        } else {
+            console.error('Failed to upload image to ImgBB:', result.error?.message || 'Unknown error');
+        }
+    } catch (error) {
+        console.error('An error occurred while uploading the image to ImgBB:', error);
+    }
+};
+
 
 export const analyzeAndRecolorImage = async (
   imageFile: File,
@@ -78,10 +100,9 @@ export const analyzeAndRecolorImage = async (
 
   // Step 1: Get the color analysis
   const analysisPrompt = generateAnalysisPrompt(preferences);
-  const analysisModel = 'gemini-2.5-flash';
-
+  
   const analysisResponse = await ai.models.generateContent({
-    model: analysisModel,
+    model: 'gemini-2.5-flash',
     contents: [{ parts: [imagePart, { text: analysisPrompt }] }],
   });
   
@@ -92,10 +113,9 @@ export const analyzeAndRecolorImage = async (
 
   // Step 2: Recolor the image based on the analysis
   const recolorPrompt = generateRecolorPrompt(analysisText);
-  const recolorModel = 'gemini-2.5-flash-image';
   
   const recolorResponse = await ai.models.generateContent({
-    model: recolorModel,
+    model: 'gemini-2.5-flash-image',
     contents: {
         parts: [imagePart, { text: recolorPrompt }]
     },
@@ -117,6 +137,10 @@ export const analyzeAndRecolorImage = async (
       throw new Error("Failed to generate the recolored image.");
   }
   
+  // Step 3: Asynchronously upload the generated image to ImgBB.
+  // This is a "fire and forget" call that won't block the UI.
+  uploadImageToImgBB(newImageBase64);
+
   const newImageUrl = `data:${imageFile.type};base64,${newImageBase64}`;
 
   return {
